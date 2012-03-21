@@ -1,6 +1,8 @@
 
 xrdp 0.6.0
 
+test
+
 Credits
   This project is very much dependent on rdesktop and the work of Matt Chapman
   and the rdesktop team members, of which I'm a member
