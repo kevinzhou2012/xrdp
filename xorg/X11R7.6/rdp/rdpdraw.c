@@ -422,13 +422,16 @@ rdpPutImage(DrawablePtr pDrawable, GCPtr pGC, int depth, int x, int y,
   else if (cd == 2)
   {
     rdpup_begin_update();
+    RegionIntersect(&clip_reg, &clip_reg,
+                    &((WindowPtr)pDrawable)->borderClip);
     for (j = REGION_NUM_RECTS(&clip_reg) - 1; j >= 0; j--)
     {
       box = REGION_RECTS(&clip_reg)[j];
-      rdpup_set_clip(box.x1, box.y1, (box.x2 - box.x1), (box.y2 - box.y1));
-      rdpup_send_area(pDrawable->x + x, pDrawable->y + y, w, h);
+      //rdpup_set_clip(box.x1, box.y1, (box.x2 - box.x1), (box.y2 - box.y1));
+      //rdpup_send_area(pDrawable->x + x, pDrawable->y + y, w, h);
+      rdpup_send_area(box.x1, box.y1, (box.x2 - box.x1), (box.y2 - box.y1));
     }
-    rdpup_reset_clip();
+    //rdpup_reset_clip();
     rdpup_end_update();
   }
   RegionUninit(&clip_reg);

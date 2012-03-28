@@ -28,7 +28,11 @@ libxrdp_la_SOURCES = \
   xrdp_rdp.c \
   xrdp_sec.c \
   xrdp_tcp.c \
-  xrdp_bitmap_compress.c
+  xrdp_bitmap_compress.c \
+  xrdp_fastpath.c \
+  xrdp_surface.c
 
 libxrdp_la_LIBADD = \
-  $(top_srcdir)/common/libcommon.la
+  $(top_srcdir)/common/libcommon.la \
+  -lfreerdp-codec \
+  -lfreerdp-utils

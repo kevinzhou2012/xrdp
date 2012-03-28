@@ -33,6 +33,8 @@ libxrdp_init(tbus id, struct trans* trans)
   session->rdp = xrdp_rdp_create(session, trans);
   session->orders = xrdp_orders_create(session, (struct xrdp_rdp*)session->rdp);
   session->client_info = &(((struct xrdp_rdp*)session->rdp)->client_info);
+  session->fastpath = xrdp_fastpath_create(session);
+  session->surface = xrdp_surface_create(session, (struct xrdp_fastpath*)session->fastpath);
   make_stream(session->s);
   init_stream(session->s, 8192 * 2);
   return session;
@@ -75,6 +77,7 @@ libxrdp_process_data(struct xrdp_session* session)
   int rv;
   int code;
   int term;
+  tui8 header;
 
   term = 0;
   cont = 1;
@@ -108,6 +111,8 @@ libxrdp_process_data(struct xrdp_session* session)
                                         session->s);
         break;
       case RDP_PDU_DATA: /* 7 */
+        //g_writeln("%08x %08x %08x %08x\n",*(tui32*)session->s->p, *(tui32*)(session->s->p+4),
+	//				*(tui32*)(session->s->p+8),*(tui32*)(session->s->p+12));
         if (xrdp_rdp_process_data((struct xrdp_rdp*)session->rdp,
                                   session->s) != 0)
         {
@@ -754,3 +759,21 @@ libxrdp_orders_send_brush(struct xrdp_session* session,
                                 width, height, bpp, type, size, data,
                                 cache_id);
 }
+
+/*****************************************************************************/
+int EXPORT_CC
+libxrdp_send_surface_bits(struct xrdp_session* session, int bpp, char* data, 
+                          int x, int y, int cx, int cy)
+{
+  return xrdp_surface_send_surface_bits((struct xrdp_surface*)session->surface,
+                                        bpp, data,x,y,cx,cy);
+}
+
+int EXPORT_CC
+libxrdp_send_frame_marker(struct xrdp_session* session, int frameAction,
+                          int frameId)
+{
+  return xrdp_surface_send_frame_marker((struct xrdp_surface*)session->surface,
+                                        (tui16)frameAction, (tui32)frameId);
+}
+

@@ -105,4 +105,5 @@ struct mod
   char port[256];
   tbus sck_obj;
   int shift_state;
+  int rfx;
 };

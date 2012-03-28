@@ -65,6 +65,13 @@ struct xrdp_client_info
                            2 = arbitrary dimensions */
   char client_ip[256];
   int max_bpp;
+
+  int fastpath_output;
+  int enable_rfx;
+  int rfx_codecId;
+  int rfx_entropy;
+  int desktop_composition;
+  int surface_commands;
 };
 
 struct xrdp_brush
@@ -109,6 +116,8 @@ struct xrdp_session
   void* rdp;
   void* orders;
   struct xrdp_client_info* client_info;
+  void* fastpath;
+  void* surface;
   int up_and_running;
   struct stream* s;
   int (*is_term)(void);
@@ -218,5 +227,12 @@ int DEFAULT_CC
 libxrdp_orders_send_brush(struct xrdp_session* session,
                           int width, int height, int bpp, int type,
                           int size, char* data, int cache_id);
+
+int EXPORT_CC
+libxrdp_send_surface_bits(struct xrdp_session* session, int bpp, char* data, 
+                          int x, int y, int cx, int cy);
+int EXPORT_CC
+libxrdp_send_frame_marker(struct xrdp_session* session, int frameAction,
+                          int frameId);
 
 #endif

@@ -133,6 +133,8 @@ struct _rdpScreenInfoRec
   int rdp_bpp;
   int rdp_Bpp;
   int rdp_Bpp_mask;
+
+  int rfx;
 };
 typedef struct _rdpScreenInfoRec rdpScreenInfoRec;
 typedef rdpScreenInfoRec* rdpScreenInfoPtr;
@@ -343,6 +345,8 @@ int
 rdpup_draw_line(short x1, short y1, short x2, short y2);
 void
 rdpup_send_area(int x, int y, int w, int h);
+void
+rdpup_send_area_rfx(int x, int y, int w, int h);
 int
 rdpup_set_cursor(short x, short y, char* cur_data, char* cur_mask);
 

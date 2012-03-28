@@ -230,7 +230,7 @@ lib_mod_connect(struct mod* mod)
     out_uint32_le(s, mod->width);
     out_uint32_le(s, mod->height);
     out_uint32_le(s, mod->bpp);
-    out_uint32_le(s, 0);
+    out_uint32_le(s, mod->rfx); /* send rfx flag */
     s_mark_end(s);
     len = (int)(s->end - s->data);
     s_pop_layer(s, iso_hdr);
@@ -389,6 +389,7 @@ lib_mod_signal(struct mod* mod)
         for (index = 0; index < num_orders; index++)
         {
           in_uint16_le(s, type);
+          //g_writeln("-------------lib_mod_signal: type=%d",type);
           switch (type)
           {
             case 1: /* server_begin_update */
@@ -510,6 +511,11 @@ lib_mod_set_param(struct mod* mod, char* name, char* value)
   else if (g_strcasecmp(name, "port") == 0)
   {
     g_strncpy(mod->port, value, 255);
+  }
+  else if (g_strcasecmp(name, "rfx") == 0)
+  {
+    mod->rfx = g_atoi(value); 
+    g_writeln("mod->rfx = %d",mod->rfx);
   }
   return 0;
 }

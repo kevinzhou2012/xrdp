@@ -374,6 +374,7 @@ xrdp_mm_setup_mod2(struct xrdp_mm* self)
   int key_flags;
   int device_flags;
   int use_uds;
+  char temp[10];
 
   g_memset(text,0,sizeof(char) * 256);
   rv = 1;
@@ -394,6 +395,8 @@ xrdp_mm_setup_mod2(struct xrdp_mm* self)
       if (self->code == 0) /* Xvnc */
       {
         g_snprintf(text, 255, "%d", 5900 + self->display);
+        g_snprintf(temp, 10, "%d", self->wm->client_info->enable_rfx);
+        self->mod->mod_set_param(self->mod, "rfx", temp);
       }
       else if (self->code == 10) /* X11rdp */
       {
@@ -413,6 +416,8 @@ xrdp_mm_setup_mod2(struct xrdp_mm* self)
         {
           g_snprintf(text, 255, "%d", 6200 + self->display);
         }
+        g_snprintf(temp, 10, "%d", self->wm->client_info->enable_rfx);
+        self->mod->mod_set_param(self->mod, "rfx", temp);
       }
       else
       {
@@ -1163,6 +1168,8 @@ server_begin_update(struct xrdp_mod* mod)
 
   wm = (struct xrdp_wm*)(mod->wm);
   p = xrdp_painter_create(wm, wm->session);
+  if (wm->client_info->enable_rfx)
+    libxrdp_send_frame_marker(p->session,0,0);
   xrdp_painter_begin_update(p);
   mod->painter = (long)p;
   return 0;
@@ -1173,12 +1180,16 @@ int DEFAULT_CC
 server_end_update(struct xrdp_mod* mod)
 {
   struct xrdp_painter* p;
+  struct xrdp_wm* wm;
 
   p = (struct xrdp_painter*)(mod->painter);
+  wm = (struct xrdp_wm*)(mod->wm);
   if (p == 0)
   {
     return 0;
   }
+  if (wm->client_info->enable_rfx)
+    libxrdp_send_frame_marker(p->session,1,0);
   xrdp_painter_end_update(p);
   xrdp_painter_delete(p);
   mod->painter = 0;
@@ -1249,9 +1260,16 @@ server_paint_rect(struct xrdp_mod* mod, int x, int y, int cx, int cy,
     return 0;
   }
   wm = (struct xrdp_wm*)(mod->wm);
-  b = xrdp_bitmap_create_with_data(width, height, wm->screen->bpp, data, wm);
-  xrdp_painter_copy(p, b, wm->screen, x, y, cx, cy, srcx, srcy);
-  xrdp_bitmap_delete(b);
+  if (!wm->client_info->enable_rfx)
+  {
+    b = xrdp_bitmap_create_with_data(width, height, wm->screen->bpp, data, wm);
+    xrdp_painter_copy(p, b, wm->screen, x, y, cx, cy, srcx, srcy);
+    xrdp_bitmap_delete(b);
+  }
+  else
+  {
+    libxrdp_send_surface_bits(p->session, wm->screen->bpp, data, x, y, cx, cy);
+  }
   return 0;
 }
 

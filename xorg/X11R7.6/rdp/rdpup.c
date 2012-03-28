@@ -284,18 +284,19 @@ rdpup_recv_msg(struct stream* s)
     pScreen->mmHeight = (ysize * 254 + dpiy * 5) / (dpiy * 10);
 */
 static int
-process_screen_size_msg(int width, int height, int bpp)
+process_screen_size_msg(int width, int height, int bpp, int rfx)
 {
   RRScreenSizePtr pSize;
   int mmwidth;
   int mmheight;
   Bool ok;
 
-  ErrorF("process_screen_size_msg: set width %d height %d bpp %d\n",
-         width, height, bpp);
+  DEBUG_OUT_UP(("process_screen_size_msg: set width %d height %d bpp %d rfx %d\n",
+         width, height, bpp, rfx));
   g_rdpScreen.rdp_width = width;
   g_rdpScreen.rdp_height = height;
   g_rdpScreen.rdp_bpp = bpp;
+  g_rdpScreen.rfx = rfx;
   if (bpp < 15)
   {
     g_rdpScreen.rdp_Bpp = 1;
@@ -429,7 +430,7 @@ param4 %d\n", msg, param1, param2, param3, param4));
         rdpup_end_update();
         break;
       case 300:
-        process_screen_size_msg(param1, param2, param3);
+        process_screen_size_msg(param1, param2, param3, param4);
         break;
     }
   }
@@ -466,10 +467,11 @@ rdpup_init(void)
     make_stream(g_in_s);
     init_stream(g_in_s, 8192);
   }
-    if (g_out_s == 0)
+  if (g_out_s == 0)
   {
     make_stream(g_out_s);
-    init_stream(g_out_s, 8192 * g_Bpp + 100);
+    //init_stream(g_out_s, 8192 * g_Bpp + 100);
+    init_stream(g_out_s, 1920 * 1088 * g_Bpp + 100);
   }
   if (g_use_uds)
   {
@@ -602,10 +604,23 @@ rdpup_begin_update(void)
 int
 rdpup_end_update(void)
 {
+#if 0
   if (g_connected && g_begin)
   {
     rdpScheduleDeferredUpdate();
   }
+#else
+  if (g_connected && g_begin)
+  {
+    DEBUG_OUT_UP(("end %d\n", g_count));
+    out_uint16_le(g_out_s, 2);
+    g_count++;
+    s_mark_end(g_out_s);
+    rdpup_send_msg(g_out_s);
+  }
+  g_count = 0;
+  g_begin = 0;
+#endif  
   return 0;
 }
 
@@ -634,7 +649,13 @@ rdpup_fill_rect(short x, short y, int cx, int cy)
 {
   if (g_connected)
   {
-    DEBUG_OUT_UP(("  rdpup_fill_rect\n"));
+    DEBUG_OUT_UP(("  rdpup_fill_rect %d %d %d %d\n",x,y,cx,cy));
+    if (g_rdpScreen.rfx)
+    {
+      DEBUG_OUT_UP(("  rdpup_fill_rect use send_area_rfx"));
+      rdpup_send_area_rfx(x,y,cx,cy);
+      return 0;
+    }
     rdpup_pre_check(10);
     out_uint16_le(g_out_s, 3);
     g_count++;
@@ -652,7 +673,13 @@ rdpup_screen_blt(short x, short y, int cx, int cy, short srcx, short srcy)
 {
   if (g_connected)
   {
-    DEBUG_OUT_UP(("  rdpup_screen_blt\n"));
+    DEBUG_OUT_UP(("  rdpup_screen_blt %d %d %d %d %d %d \n",x,y,cx,cy,srcx,srcy));
+    if (g_rdpScreen.rfx)
+    {
+      DEBUG_OUT_UP(("  rdpup_screen_blt use send_area_rfx"));
+      rdpup_send_area_rfx(x,y,cx,cy);
+      return 0;
+    }
     rdpup_pre_check(14);
     out_uint16_le(g_out_s, 4);
     g_count++;
@@ -672,7 +699,7 @@ rdpup_set_clip(short x, short y, int cx, int cy)
 {
   if (g_connected)
   {
-    DEBUG_OUT_UP(("  rdpup_set_clip\n"));
+    DEBUG_OUT_UP(("  rdpup_set_clip %d %d %d %d \n",x,y,cx,cy));
     rdpup_pre_check(10);
     out_uint16_le(g_out_s, 10);
     g_count++;
@@ -837,7 +864,7 @@ rdpup_set_fgcolor(int fgcolor)
 {
   if (g_connected)
   {
-    DEBUG_OUT_UP(("  rdpup_set_fgcolor\n"));
+    DEBUG_OUT_UP(("  rdpup_set_fgcolor%08x\n",fgcolor));
     rdpup_pre_check(6);
     out_uint16_le(g_out_s, 12);
     g_count++;
@@ -854,7 +881,7 @@ rdpup_set_bgcolor(int bgcolor)
 {
   if (g_connected)
   {
-    DEBUG_OUT_UP(("  rdpup_set_bgcolor\n"));
+    DEBUG_OUT_UP(("  rdpup_set_bgcolor %08x\n",bgcolor));
     rdpup_pre_check(6);
     out_uint16_le(g_out_s, 13);
     g_count++;
@@ -871,7 +898,7 @@ rdpup_set_opcode(int opcode)
 {
   if (g_connected)
   {
-    DEBUG_OUT_UP(("  rdpup_set_opcode\n"));
+    DEBUG_OUT_UP(("  rdpup_set_opcode %d\n",opcode));
     rdpup_pre_check(4);
     out_uint16_le(g_out_s, 14);
     g_count++;
@@ -920,7 +947,7 @@ rdpup_set_cursor(short x, short y, char* cur_data, char* cur_mask)
 {
   if (g_connected)
   {
-    DEBUG_OUT_UP(("  rdpup_set_cursor\n"));
+    DEBUG_OUT_UP(("  rdpup_set_cursor %d %d \n",x,y));
     rdpup_pre_check(6 + 32 * (32 * 3) + 32 * (32 / 8));
     out_uint16_le(g_out_s, 19);
     g_count++;
@@ -1061,6 +1088,13 @@ rdpup_send_area(int x, int y, int w, int h)
     h = g_rdpScreen.height - y;
   }
   DEBUG_OUT_UP(("%d\n", w * h));
+  
+  if (g_rdpScreen.rfx)
+  {
+    rdpup_send_area_rfx(x,y,w,h);
+    return;
+  }
+
   if (g_connected && g_begin)
   {
     DEBUG_OUT_UP(("  rdpup_send_area\n"));
@@ -1105,5 +1139,39 @@ rdpup_send_area(int x, int y, int w, int h)
       }
       ly += 64;
     }
+  }
+}
+
+/******************************************************************************/
+void
+rdpup_send_area_rfx(int x, int y, int w, int h)
+{
+  char* s;
+  int i;
+
+  if (g_connected && g_begin)
+  {
+    DEBUG_OUT_UP(("  rdpup_send_area_rfx :  %d %d %d %d \n",x,y,w,h));
+
+    rdpup_pre_check(w * h * g_rdpScreen.rdp_Bpp + 42);
+    out_uint16_le(g_out_s, 5);
+    g_count++;
+    out_uint16_le(g_out_s, x);
+    out_uint16_le(g_out_s, y);
+    out_uint16_le(g_out_s, w);
+    out_uint16_le(g_out_s, h);
+    out_uint32_le(g_out_s, w * h * g_rdpScreen.rdp_Bpp);
+    for (i = 0; i < h; i++)
+    {
+      s = (g_rdpScreen.pfbMemory +
+            ((y + i) * g_rdpScreen.paddedWidthInBytes) + (x * g_Bpp));
+      convert_pixels(s, g_out_s->p, w);
+      g_out_s->p += w * g_rdpScreen.rdp_Bpp;
+    }
+    out_uint16_le(g_out_s, w);
+    out_uint16_le(g_out_s, h);
+    out_uint16_le(g_out_s, 0);
+    out_uint16_le(g_out_s, 0);
+   
   }
 }

@@ -407,4 +407,60 @@ int APP_CC
 xrdp_channel_process(struct xrdp_channel* self, struct stream* s,
                      int chanid);
 
+/* fastpath */
+struct xrdp_fastpath
+{
+  struct xrdp_tcp* tcp_layer;
+  struct stream* out_s;
+};
+
+
+struct xrdp_surface
+{
+  struct stream* out_s;
+  struct xrdp_fastpath* fastpath;
+  struct xrdp_session* session;
+
+  void* s;
+  void* rfx_context;
+};
+
+/* xrdp_fastpath */
+struct xrdp_fastpath* APP_CC
+xrdp_fastpath_create(struct xrdp_session* session);
+void APP_CC
+xrdp_fastpath_delete(struct xrdp_fastpath* self);
+int APP_CC
+xrdp_fastpath_reset(struct xrdp_fastpath* self);
+int APP_CC
+xrdp_fastpath_init(struct xrdp_fastpath* self);
+int APP_CC
+xrdp_fastpath_send_update_pdu(struct xrdp_fastpath* self,tui8 updateCode,
+                              struct stream* s);
+int APP_CC
+xrdp_fastpath_process_data(struct xrdp_fastpath* self, struct stream* s,
+                           tui8 header);
+
+
+/* xrdp_surface.c */
+struct xrdp_surface* APP_CC
+xrdp_surface_create(struct xrdp_session* session,
+                    struct xrdp_fastpath* fastpath);
+void APP_CC
+xrdp_surface_delete(struct xrdp_surface* self);
+int APP_CC
+xrdp_suface_reset(struct xrdp_surface* self);
+int APP_CC
+xrdp_surface_init(struct xrdp_surface* self);
+int APP_CC
+xrdp_surface_send_surface_bits(struct xrdp_surface* self,int bpp, char* data,
+                               int x, int y, int cx, int cy);
+int APP_CC
+xrdp_surface_send_frame_marker(struct xrdp_surface* self,
+                               tui16 frameAction,tui32 frameId);
+
+
+
+
+
 #endif
