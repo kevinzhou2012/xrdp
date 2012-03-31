@@ -150,6 +150,7 @@ xrdp_rdp_create(struct xrdp_session* session, struct trans* trans)
   self->client_info.cache3_entries = 262;
   self->client_info.cache3_size = 4096;
   g_write_ip_address(trans->sck, self->client_info.client_ip);  /* load client ip info */
+  
   DEBUG(("out xrdp_rdp_create"));
   return self;
 }
@@ -406,6 +407,11 @@ xrdp_rdp_send_demand_active(struct xrdp_rdp* self)
   char* caps_count_ptr;
   char* caps_size_ptr;
   char* caps_ptr;
+  tui16 extraFlags;
+  tui16 orderFlags;
+  tui16 orderSupportedExFlags;
+  tui16 inputFlags;
+  tui32 cmdFlags;
 
   make_stream(s);
   init_stream(s, 8192);
@@ -438,17 +444,18 @@ xrdp_rdp_send_demand_active(struct xrdp_rdp* self)
   caps_count++;
   out_uint16_le(s, RDP_CAPSET_GENERAL); /* 1 */
   out_uint16_le(s, RDP_CAPLEN_GENERAL); /* 24(0x18) */
-  out_uint16_le(s, 1); /* OS major type */
-  out_uint16_le(s, 3); /* OS minor type */
-  out_uint16_le(s, 0x200); /* Protocol version */
+  out_uint16_le(s, OSMAJORTYPE_WINDOWS); /* OS major type */
+  out_uint16_le(s, TS_OSMINORTYPE_WINDOWS_NT); /* OS minor type */
+  out_uint16_le(s, TS_CAPS_PROTOCOLVERSION); /* Protocol version */
   out_uint16_le(s, 0); /* pad */
   out_uint16_le(s, 0); /* Compression types */
-  //out_uint16_le(s, 0); /* pad use 0x40d for rdp packets, 0 for not */
-  out_uint16_le(s, 0x40d); /* pad use 0x40d for rdp packets, 0 for not */
+  extraFlags = FASTPATH_OUTPUT_SUPPORTED | NO_BITMAP_COMPRESSION_HDR |
+               LONG_CREDENTIALS_SUPPORTED | AUTORECONNECT_SUPPORTED;
+  out_uint16_le(s, extraFlags); /* pad use 0x40d for rdp packets, 0 for not */
   out_uint16_le(s, 0); /* Update capability */
   out_uint16_le(s, 0); /* Remote unshare capability */
   out_uint16_le(s, 0); /* Compression level */
-  out_uint16_le(s, 0); /* Pad */
+  out_uint16_le(s, 0); /* refreshRectSupport suppressOutputSupport */
 
   /* Output bitmap capability set */
   caps_count++;
@@ -463,8 +470,9 @@ xrdp_rdp_send_demand_active(struct xrdp_rdp* self)
   out_uint16_le(s, 0); /* Pad */
   out_uint16_le(s, 1); /* Allow resize */
   out_uint16_le(s, 1); /* bitmap compression */
-  out_uint16_le(s, 0); /* unknown */
-  out_uint16_le(s, 0); /* unknown */
+  out_uint8(s, 0); /* highColorFlags */
+  out_uint8(s, 0); /* drawingFlags */
+  out_uint16_le(s, 0); /* multipelRectangleSupport */
   out_uint16_le(s, 0); /* pad */
 
   /* Output font capability set */
@@ -473,17 +481,19 @@ xrdp_rdp_send_demand_active(struct xrdp_rdp* self)
   out_uint16_le(s, RDP_CAPLEN_FONT); /* 4 */
 
   /* Output order capability set */
+  orderFlags = NEGOTIATEORDERSUPPORT | COLORINDEXSUPPORT ;
+  orderSupportedExFlags = 0;
   caps_count++;
   out_uint16_le(s, RDP_CAPSET_ORDER); /* 3 */
   out_uint16_le(s, RDP_CAPLEN_ORDER); /* 88(0x58) */
   out_uint8s(s, 16);
-  out_uint32_be(s, 0x40420f00);
+  out_uint32_be(s, 0x40420f00); /* pad ??? */
   out_uint16_le(s, 1); /* Cache X granularity */
   out_uint16_le(s, 20); /* Cache Y granularity */
   out_uint16_le(s, 0); /* Pad */
   out_uint16_le(s, 1); /* Max order level */
-  out_uint16_le(s, 0x2f); /* Number of fonts */
-  out_uint16_le(s, 0x22); /* Capability flags */
+  out_uint16_le(s, 0x2f); /* Number of fonts ??? (should be 0)*/
+  out_uint16_le(s, orderFlags); /* Capability flags */
   /* caps */
   out_uint8(s, 1); /* dest blt */
   out_uint8(s, 1); /* pat blt */
@@ -518,11 +528,13 @@ xrdp_rdp_send_demand_active(struct xrdp_rdp* self)
   out_uint8(s, 0); /* unused */
   out_uint8(s, 0); /* unused */
   out_uint16_le(s, 0x6a1);
-  out_uint8s(s, 2); /* ? */
+  out_uint16_le(s, orderSupportedExFlags); /* orderSupportedExFlags */
+  out_uint32_le(s, 0x0f4240); /* padding shoud be 0 */
   out_uint32_le(s, 0x0f4240); /* desk save */
-  out_uint32_le(s, 0x0f4240); /* desk save */
-  out_uint32_le(s, 1); /* ? */
-  out_uint32_le(s, 0); /* ? */
+  out_uint16_le(s, 1); /* padding */
+  out_uint16_le(s, 0); /* padding */
+  out_uint16_le(s, 0); /* textANSICodePage */
+  out_uint16_le(s, 0); /* padding */
 
   /* Output color cache capability set */
   caps_count++;
@@ -540,11 +552,42 @@ xrdp_rdp_send_demand_active(struct xrdp_rdp* self)
   out_uint16_le(s, 0x19); /* Cache size */
 
   /* Output input capability set */
+  //inputFlags  = INPUT_FLAG_SCANCODES | INPUT_FLAG_MOUSEX | INPUT_FLAG_UNICODE;
+  //inputFlags |= INPUT_FLAG_FASTPATH_INPUT | INPUT_FLAG_FASTPATH_INPUT2;
+  inputFlags = INPUT_FLAG_SCANCODES;
   caps_count++;
   out_uint16_le(s, RDP_CAPSET_INPUT); /* 13(0xd) */
   out_uint16_le(s, RDP_CAPLEN_INPUT); /* 88(0x58) */
-  out_uint8(s, 1);
-  out_uint8s(s, 83);
+  out_uint16_le(s, inputFlags);
+  out_uint8s(s, 82);
+
+  /* output desktop composition capability set */
+  caps_count++;
+  out_uint16_le(s, RDP_CAPSET_COMPDESK); /* 25(0x19) */
+  out_uint16_le(s, RDP_CAPLEN_COMPDESK); /* 6(0x6) */
+  out_uint16_le(s, COMPDESK_SUPPORTED);
+  
+  /* output surface commands capability set */
+  cmdFlags = SURCMDS_SETSURFACEBITS | SURCMDS_FRAMEMARKER |
+             SURCMDS_STREAMSUFRACEBITS ;
+  caps_count++;
+  out_uint16_le(s, RDP_CAPSET_SURFCMDS); /* 28(0x1c) */
+  out_uint16_le(s, RDP_CAPLEN_SURFCMDS); /* 12(0xc) */
+  out_uint32_le(s, cmdFlags);
+  out_uint32_le(s, 0); /* reserved */
+
+  /* output surface commands capability set */
+  cmdFlags = SURCMDS_SETSURFACEBITS | SURCMDS_FRAMEMARKER |
+             SURCMDS_STREAMSUFRACEBITS ;
+  caps_count++;
+  out_uint16_le(s, RDP_CAPSET_BMPCODECS); /* 29(0x1d) */
+  out_uint16_le(s, RDP_CAPLEN_BMPCODECS); /* 28(0x1c) */
+  out_uint8(s, 1); /* bitmapCodesCount */
+  out_uint8p(s, CODEC_GUID_REMOTEFX, 16); 
+  out_uint8(s, 0); /* codecID */
+  out_uint16_le(s, 4); /* codecPropertiesLength */
+  out_uint32_le(s, 0); /* reserved */
+  
 
   out_uint8s(s, 4); /* pad */
 
@@ -574,15 +617,18 @@ static int APP_CC
 xrdp_process_capset_general(struct xrdp_rdp* self, struct stream* s,
                             int len)
 {
-  int i;
+  tui16 extraFlags;
 
   in_uint8s(s, 10);
-  in_uint16_le(s, i);
+  in_uint16_le(s, extraFlags);
   /* use_compact_packets is pretty much 'use rdp5' */
-  self->client_info.use_compact_packets = (i != 0);
+  self->client_info.use_compact_packets = (extraFlags != 0);
   /* op2 is a boolean to use compact bitmap headers in bitmap cache */
   /* set it to same as 'use rdp5' boolean */
   self->client_info.op2 = self->client_info.use_compact_packets;
+
+  if (extraFlags & FASTPATH_OUTPUT_SUPPORTED)
+    self->client_info.fastpath_output = 1;
   return 0;
 }
 
@@ -719,6 +765,84 @@ xrdp_process_capset_brushcache(struct xrdp_rdp* self, struct stream* s,
 }
 
 /*****************************************************************************/
+static int APP_CC
+xrdp_process_capset_compdesk(struct xrdp_rdp* self, struct stream* s,
+                               int len)
+{
+  tui16 compDeskSupportLevel;
+
+  in_uint16_le(s, compDeskSupportLevel);
+  self->client_info.desktop_composition = compDeskSupportLevel;
+  return 0;
+}
+
+/*****************************************************************************/
+static int APP_CC
+xrdp_process_capset_surfcmds(struct xrdp_rdp* self, struct stream* s,
+                               int len)
+{
+  in_uint8s(s, 4); /* cmdFlags */
+  in_uint8s(s, 4); /* reserved */
+  self->client_info.surface_commands = 1;
+  return 0;
+}
+
+/*****************************************************************************/
+static int APP_CC
+xrdp_process_capset_bmpcodecs(struct xrdp_rdp* self, struct stream* s,
+                               int len)
+{
+  tui8 bmpCodecCnt;
+  char temp[20];
+  tui8 codecId;
+  tui16 propertiesLen;
+
+  in_uint8(s, bmpCodecCnt);
+
+  while (bmpCodecCnt>0)
+  {
+    in_uint8a(s, temp, 16);
+    if (g_strncmp(temp, CODEC_GUID_REMOTEFX, 16) == 0)
+    {
+      in_uint8(s, codecId);
+      g_writeln("codecId= %d %d %d",codecId,self->client_info.desktop_composition,
+			self->client_info.surface_commands);
+      if (self->client_info.surface_commands)
+      {
+        self->client_info.enable_rfx = 1;
+        self->client_info.rfx_codecId = codecId;
+      }
+      in_uint16_le(s, propertiesLen);
+      /* TODO parse ENTROPY capability */
+      in_uint8s(s, propertiesLen);
+      self->client_info.rfx_entropy = 0; /* RLGR1 */
+      xrdp_surface_init(self->session->surface);
+    }
+    else
+    {
+      in_uint8s(s, 1);
+      in_uint16_le(s, propertiesLen);
+      in_uint8s(s, propertiesLen);
+    }
+
+    bmpCodecCnt--;
+  }
+  g_writeln("xrdp_process_capset_bmpcodecs: rfx=%d rfxcodecid=%d %d %d",self->client_info.enable_rfx ,
+		self->client_info.rfx_codecId,self->client_info.width,self->client_info.height);
+  return 0;
+}
+
+/*****************************************************************************/
+static int APP_CC
+xrdp_process_capset_lpointer(struct xrdp_rdp* self, struct stream* s,
+                               int len)
+{
+  in_uint8s(s, 2); /* largePointerSupportFlags */
+  return 0;
+}
+
+
+/*****************************************************************************/
 int APP_CC
 xrdp_rdp_process_confirm_active(struct xrdp_rdp* self, struct stream* s)
 {
@@ -743,6 +867,7 @@ xrdp_rdp_process_confirm_active(struct xrdp_rdp* self, struct stream* s)
     p = s->p;
     in_uint16_le(s, type);
     in_uint16_le(s, len);
+    g_writeln("xrdp_rdp_process_confirm_active %d", type);
     switch (type)
     {
       case RDP_CAPSET_GENERAL: /* 1 */
@@ -807,9 +932,25 @@ xrdp_rdp_process_confirm_active(struct xrdp_rdp* self, struct stream* s)
       case 22: /* 22 */
         DEBUG(("--22"));
         break;
+      case RDP_CAPSET_COMPDESK: /* 25 */
+        DEBUG(("RDP_CAPSET_COMPDESK"));
+        xrdp_process_capset_compdesk(self, s, len);
+	break;
       case 26: /* 26 */
         DEBUG(("--26"));
         break;
+      case RDP_CAPSET_SURFCMDS: /* 28 */
+        DEBUG(("RDP_CAPSET_SURFCMDS"));
+        xrdp_process_capset_surfcmds(self, s, len);
+	break;
+      case RDP_CAPSET_BMPCODECS: /* 29 */
+        DEBUG(("RDP_CAPSET_BMPCODECS"));
+        xrdp_process_capset_bmpcodecs(self, s, len);
+      case RDP_CAPSET_LPOINTER: /* 39 */
+        DEBUG(("RDP_CAPSET_LPOINTER"));
+        xrdp_process_capset_lpointer(self, s, len);
+	break;
+
       default:
         g_writeln("unknown in xrdp_rdp_process_confirm_active %d", type);
         break;
